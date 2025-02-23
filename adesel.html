@@ -16,6 +16,9 @@
     <label>Envanter: <input type="number" id="newInventory"></label>
     <button onclick="addProduct()">Ürün Ekle</button>
 
+    <!-- Hepsini Güncelle Butonu -->
+    <button onclick="updateAllProducts()">Hepsini Güncelle</button>
+
     <div id="inventory-container">Yükleniyor...</div>
 
     <script type="module">
@@ -50,8 +53,8 @@
                             <th>Ürün Adı</th>
                             <th>Koli İçi</th>
                             <th>Genel Envanter</th>`;
-                    
-                    for (let i = 1; i <= 31; i++) {
+
+                    for (let i = 1; i <= 7; i++) {
                         html += `<th>Gün ${i}</th>`;
                     }
                     html += `<th>Güncelle</th><th>Sil</th></tr>`;
@@ -64,7 +67,7 @@
                             <td><input type="number" id="pack-${code}" value="${product.pack || 0}"></td>
                             <td><input type="number" id="inventory-${code}" value="${product.inventory || 0}"></td>`;
 
-                        for (let i = 1; i <= 31; i++) {
+                        for (let i = 1; i <= 7; i++) {
                             let dayValue = product.dailyInventory?.[i] || 0;
                             html += `<td><input type="number" id="day-${code}-${i}" value="${dayValue}"></td>`;
                         }
@@ -90,7 +93,7 @@
             const inventory = parseInt(document.getElementById(`inventory-${code}`).value);
 
             let inventoryData = {};
-            for (let i = 1; i <= 31; i++) {
+            for (let i = 1; i <= 7; i++) {
                 let dayValue = parseInt(document.getElementById(`day-${code}-${i}`).value) || 0;
                 inventoryData[i] = dayValue;
             }
@@ -121,7 +124,7 @@
             }
 
             let emptyDailyInventory = {};
-            for (let i = 1; i <= 31; i++) {
+            for (let i = 1; i <= 7; i++) {
                 emptyDailyInventory[i] = 0;
             }
 
@@ -150,6 +153,42 @@
                     console.error("Firebase Ürün Silme Hatası ❌:", error);
                 });
             }
+        };
+
+        // Tüm ürünleri güncelleme fonksiyonu
+        window.updateAllProducts = function() {
+            const productsRef = ref(database, 'products');
+            get(productsRef).then((snapshot) => {
+                if (snapshot.exists()) {
+                    const products = snapshot.val();
+                    for (const code in products) {
+                        const name = document.getElementById(`name-${code}`).value;
+                        const pack = parseInt(document.getElementById(`pack-${code}`).value);
+                        const inventory = parseInt(document.getElementById(`inventory-${code}`).value);
+
+                        let inventoryData = {};
+                        for (let i = 1; i <= 7; i++) {
+                            let dayValue = parseInt(document.getElementById(`day-${code}-${i}`).value) || 0;
+                            inventoryData[i] = dayValue;
+                        }
+
+                        const productRef = ref(database, 'products/' + code);
+                        update(productRef, {
+                            name: name,
+                            pack: pack,
+                            inventory: inventory,
+                            dailyInventory: inventoryData
+                        }).catch((error) => {
+                            console.error("Firebase Güncelleme Hatası ❌:", error);
+                        });
+                    }
+                    alert("Tüm ürünler başarıyla güncellendi! ✅");
+                } else {
+                    alert("Veriler bulunamadı.");
+                }
+            }).catch((error) => {
+                console.error("Veri alma hatası ❌:", error);
+            });
         };
 
         // Sayfa açıldığında ürünleri getir
