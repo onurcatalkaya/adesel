@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Envanter Takibi</title>
+</head>
+<body>
+    <h2>Ürün Envanteri</h2>
+
+    <!-- Yeni Ürün Ekleme Formu -->
+    <h3>Yeni Ürün Ekle</h3>
+    <label>Ürün Kodu: <input type="text" id="newCode"></label>
+    <label>Ürün Adı: <input type="text" id="newName"></label>
+    <label>Koli İçi: <input type="number" id="newPack"></label>
+    <label>Envanter: <input type="number" id="newInventory"></label>
+    <button onclick="addProduct()">Ürün Ekle</button>
+
+    <div id="inventory-container">Yükleniyor...</div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+        import { getDatabase, ref, get, update, set, remove } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js";
+
+        // Firebase yapılandırması
+        const firebaseConfig = {
+            apiKey: "AIzaSyBln6yEItRD6iYCq3l6WLqre51Jp1MfPfw",
+            authDomain: "adesel.firebaseapp.com",
+            databaseURL: "https://adesel-default-rtdb.firebaseio.com",
+            projectId: "adesel",
+            storageBucket: "adesel.firebasestorage.app",
+            messagingSenderId: "523757015370",
+            appId: "1:523757015370:web:e213ae1727160ed73bb1b3",
+            measurementId: "G-1PZPGXK48F"
+        };
+
+        // Firebase başlatma
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+
+        // Ürünleri getir ve listele
+        function fetchProducts() {
+            const productsRef = ref(database, 'products');
+            get(productsRef).then((snapshot) => {
+                if (snapshot.exists()) {
+                    const products = snapshot.val();
+                    let html = `<table border="1">
+                        <tr>
+                            <th>Ürün Kodu</th>
+                            <th>Ürün Adı</th>
+                            <th>Koli İçi</th>
+                            <th>Genel Envanter</th>`;
+                    
+                    for (let i = 1; i <= 31; i++) {
+                        html += `<th>Gün ${i}</th>`;
+                    }
+                    html += `<th>Güncelle</th><th>Sil</th></tr>`;
+
+                    for (const code in products) {
+                        const product = products[code];
+                        html += `<tr>
+                            <td>${code}</td>
+                            <td><input type="text" id="name-${code}" value="${product.name || ''}"></td>
+                            <td><input type="number" id="pack-${code}" value="${product.pack || 0}"></td>
+                            <td><input type="number" id="inventory-${code}" value="${product.inventory || 0}"></td>`;
+
+                        for (let i = 1; i <= 31; i++) {
+                            let dayValue = product.dailyInventory?.[i] || 0;
+                            html += `<td><input type="number" id="day-${code}-${i}" value="${dayValue}"></td>`;
+                        }
+
+                        html += `<td><button onclick="updateProduct('${code}')">Güncelle</button></td>
+                                 <td><button onclick="deleteProduct('${code}')">Sil</button></td></tr>`;
+                    }
+
+                    html += `</table>`;
+                    document.getElementById('inventory-container').innerHTML = html;
+                } else {
+                    document.getElementById('inventory-container').innerHTML = "Veri bulunamadı.";
+                }
+            }).catch((error) => {
+                console.error("Veri alma hatası ❌:", error);
+            });
+        }
+
+        // Firebase'e ürün güncelleme fonksiyonu
+        window.updateProduct = function(code) {
+            const name = document.getElementById(`name-${code}`).value;
+            const pack = parseInt(document.getElementById(`pack-${code}`).value);
+            const inventory = parseInt(document.getElementById(`inventory-${code}`).value);
+
+            let inventoryData = {};
+            for (let i = 1; i <= 31; i++) {
+                let dayValue = parseInt(document.getElementById(`day-${code}-${i}`).value) || 0;
+                inventoryData[i] = dayValue;
+            }
+
+            const productRef = ref(database, 'products/' + code);
+            update(productRef, {
+                name: name,
+                pack: pack,
+                inventory: inventory,
+                dailyInventory: inventoryData
+            }).then(() => {
+                alert("Ürün başarıyla güncellendi! ✅");
+            }).catch((error) => {
+                console.error("Firebase Güncelleme Hatası ❌:", error);
+            });
+        };
+
+        // Firebase'e yeni ürün ekleme fonksiyonu
+        window.addProduct = function() {
+            const newCode = document.getElementById("newCode").value.trim();
+            const newName = document.getElementById("newName").value.trim();
+            const newPack = parseInt(document.getElementById("newPack").value);
+            const newInventory = parseInt(document.getElementById("newInventory").value);
+
+            if (!newCode || !newName || isNaN(newPack) || isNaN(newInventory)) {
+                alert("Lütfen tüm alanları doğru doldurun! ⚠️");
+                return;
+            }
+
+            let emptyDailyInventory = {};
+            for (let i = 1; i <= 31; i++) {
+                emptyDailyInventory[i] = 0;
+            }
+
+            const productRef = ref(database, 'products/' + newCode);
+            set(productRef, {
+                name: newName,
+                pack: newPack,
+                inventory: newInventory,
+                dailyInventory: emptyDailyInventory
+            }).then(() => {
+                alert("Ürün başarıyla eklendi! ✅");
+                fetchProducts(); // Sayfayı yenilemeden listeyi güncelle
+            }).catch((error) => {
+                console.error("Firebase Ürün Ekleme Hatası ❌:", error);
+            });
+        };
+
+        // Firebase'den ürün silme fonksiyonu
+        window.deleteProduct = function(code) {
+            if (confirm("Bu ürünü silmek istediğinize emin misiniz? ⚠️")) {
+                const productRef = ref(database, 'products/' + code);
+                remove(productRef).then(() => {
+                    alert("Ürün başarıyla silindi! 🗑️");
+                    fetchProducts(); // Sayfayı yenilemeden listeyi güncelle
+                }).catch((error) => {
+                    console.error("Firebase Ürün Silme Hatası ❌:", error);
+                });
+            }
+        };
+
+        // Sayfa açıldığında ürünleri getir
+        fetchProducts();
+    </script>
+</body>
+</html>
