@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mağaza Takibi</title>
+</head>
+<body>
+    <h2>Mağaza Bilgileri</h2>
+
+    <!-- Yeni Mağaza Ekleme Formu -->
+    <div class="form-container">
+        <h3>Yeni Mağaza Ekle</h3>
+        <label>Mağaza Kodu: <input type="text" id="newStoreCode"></label>
+        <label>Mağaza Adı: <input type="text" id="newStoreName"></label>
+        <label>Ciro: <input type="number" id="newStoreRevenue"></label>
+        <label>Ciro Ortalama: <input type="number" id="newStoreAvgRevenue"></label>
+        <label>Müşteri: <input type="number" id="newStoreCustomer"></label>
+        <label>Müşteri Ortalama: <input type="number" id="newStoreAvgCustomer"></label>
+        <label>Fire: <input type="number" id="newStoreWaste"></label>
+        <label>Fire Ortalama: <input type="number" id="newStoreAvgWaste"></label>
+        <button onclick="addStore()">Mağaza Ekle</button>
+    </div>
+
+    <div id="store-container">Yükleniyor...</div>
+
+    <div id="totals-container"></div> <!-- Toplam ve Ortalamalar için bölüm -->
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+        import { getDatabase, ref, get, update, set, remove } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js";
+
+        // Firebase yapılandırması
+        const firebaseConfig = {
+            apiKey: "AIzaSyBln6yEItRD6iYCq3l6WLqre51Jp1MfPfw",
+            authDomain: "adesel.firebaseapp.com",
+            databaseURL: "https://adesel-default-rtdb.firebaseio.com",
+            projectId: "adesel",
+            storageBucket: "adesel.firebasestorage.app",
+            messagingSenderId: "523757015370",
+            appId: "1:523757015370:web:e213ae1727160ed73bb1b3",
+            measurementId: "G-1PZPGXK48F"
+        };
+
+        // Firebase başlatma
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+
+        // Mağazaları getir ve listele
+        function fetchStores() {
+            const storesRef = ref(database, 'stores');
+            get(storesRef).then((snapshot) => {
+                if (snapshot.exists()) {
+                    const stores = snapshot.val();
+                    let html = `<table>
+                        <tr>
+                            <th>Mağaza Kodu</th>
+                            <th>Mağaza Adı</th>
+                            <th>Ciro</th>
+                            <th>Ciro Ortalama</th>
+                            <th>Müşteri</th>
+                            <th>Müşteri Ortalama</th>
+                            <th>Fire</th>
+                            <th>Fire Ortalama</th>
+                            <th>Güncelle</th>
+                            <th>Sil</th>
+                        </tr>`;
+
+                    let totalRevenue = 0, totalAvgRevenue = 0, totalCustomer = 0, totalAvgCustomer = 0, totalWaste = 0, totalAvgWaste = 0;
+                    let storeCount = 0;
+
+                    for (const code in stores) {
+                        const store = stores[code];
+                        totalRevenue += store.revenue || 0;
+                        totalAvgRevenue += store.avgRevenue || 0;
+                        totalCustomer += store.customer || 0;
+                        totalAvgCustomer += store.avgCustomer || 0;
+                        totalWaste += store.waste || 0;
+                        totalAvgWaste += store.avgWaste || 0;
+                        storeCount++;
+
+                        html += `<tr>
+                            <td>${code}</td>
+                            <td><input type="text" id="name-${code}" value="${store.name || ''}"></td>
+                            <td><input type="number" id="revenue-${code}" value="${store.revenue || 0}"></td>
+                            <td><input type="number" id="avgRevenue-${code}" value="${store.avgRevenue || 0}"></td>
+                            <td><input type="number" id="customer-${code}" value="${store.customer || 0}"></td>
+                            <td><input type="number" id="avgCustomer-${code}" value="${store.avgCustomer || 0}"></td>
+                            <td><input type="number" id="waste-${code}" value="${store.waste || 0}"></td>
+                            <td><input type="number" id="avgWaste-${code}" value="${store.avgWaste || 0}"></td>
+                            <td><button onclick="updateStore('${code}')">Güncelle</button></td>
+                            <td><button onclick="deleteStore('${code}')">Sil</button></td>
+                        </tr>`;
+                    }
+
+                    html += `</table>`;
+                    document.getElementById('store-container').innerHTML = html;
+
+                    // Ortalamaları hesapla
+                    const avgRevenue = storeCount > 0 ? (totalRevenue / storeCount).toFixed(2) : 0;
+                    const avgAvgRevenue = storeCount > 0 ? (totalAvgRevenue / storeCount).toFixed(2) : 0;
+                    const avgCustomer = storeCount > 0 ? (totalCustomer / storeCount).toFixed(2) : 0;
+                    const avgAvgCustomer = storeCount > 0 ? (totalAvgCustomer / storeCount).toFixed(2) : 0;
+                    const avgWaste = storeCount > 0 ? (totalWaste / storeCount).toFixed(2) : 0;
+                    const avgAvgWaste = storeCount > 0 ? (totalAvgWaste / storeCount).toFixed(2) : 0;
+
+                    const totalCustomerAvg = totalAvgCustomer; // Bu toplam, mağazalardaki "avgCustomer" değerlerinin toplamıdır
+                    const avgCustomerAvg = storeCount > 0 ? (totalCustomerAvg / storeCount).toFixed(2) : 0;
+
+                    // Toplam ve Ortalama gösterimi
+                    document.getElementById('totals-container').innerHTML = `
+                        <h3>Ciro</h3>
+                        <p><strong>Toplam Ciro:</strong> ${totalRevenue}</p>
+                        <p><strong>Ciro Ortalaması:</strong> ${avgRevenue}</p>
+                        <p><strong>Toplam Ciro Ortalama:</strong> ${totalAvgRevenue}</p>
+                        <p><strong>Ciro Ortalamasının Ortalaması:</strong> ${avgAvgRevenue}</p>
+
+                        <h3>Müşteri</h3>
+                        <p><strong>Toplam Müşteri:</strong> ${totalCustomer}</p>
+                        <p><strong>Müşteri Ortalaması:</strong> ${avgCustomer}</p>
+                        <p><strong>Toplam Müşteri Ortalaması:</strong> ${totalCustomerAvg}</p>
+                        <p><strong>Müşteri Ortalamasının Ortalaması:</strong> ${avgCustomerAvg}</p>
+
+                        <h3>Fire</h3>
+                        <p><strong>Toplam Fire:</strong> ${totalWaste}</p>
+                        <p><strong>Fire Ortalaması:</strong> ${avgWaste}</p>
+                        <p><strong>Toplam Fire Ortalaması:</strong> ${totalAvgWaste}</p>
+                        <p><strong>Fire Ortalamasının Ortalaması:</strong> ${avgAvgWaste}</p>
+                    `;
+                } else {
+                    document.getElementById('store-container').innerHTML = "Veri bulunamadı.";
+                }
+            }).catch((error) => {
+                console.error("Veri alma hatası ❌:", error);
+            });
+        }
+
+        // Firebase'e mağaza güncelleme fonksiyonu
+        window.updateStore = function(code) {
+            const name = document.getElementById(`name-${code}`).value;
+            const revenue = parseInt(document.getElementById(`revenue-${code}`).value);
+            const avgRevenue = parseInt(document.getElementById(`avgRevenue-${code}`).value);
+            const customer = parseInt(document.getElementById(`customer-${code}`).value);
+            const avgCustomer = parseInt(document.getElementById(`avgCustomer-${code}`).value);
+            const waste = parseInt(document.getElementById(`waste-${code}`).value);
+            const avgWaste = parseInt(document.getElementById(`avgWaste-${code}`).value);
+
+            const storeRef = ref(database, 'stores/' + code);
+            update(storeRef, {
+                name: name,
+                revenue: revenue,
+                avgRevenue: avgRevenue,
+                customer: customer,
+                avgCustomer: avgCustomer,
+                waste: waste,
+                avgWaste: avgWaste
+            }).then(() => {
+                alert("Mağaza başarıyla güncellendi! ✅");
+            }).catch((error) => {
+                console.error("Firebase Güncelleme Hatası ❌:", error);
+            });
+        };
+
+        // Firebase'e yeni mağaza ekleme fonksiyonu
+        window.addStore = function() {
+            const newCode = document.getElementById("newStoreCode").value.trim();
+            const newName = document.getElementById("newStoreName").value.trim();
+            const newRevenue = parseInt(document.getElementById("newStoreRevenue").value);
+            const newAvgRevenue = parseInt(document.getElementById("newStoreAvgRevenue").value);
+            const newCustomer = parseInt(document.getElementById("newStoreCustomer").value);
+            const newAvgCustomer = parseInt(document.getElementById("newStoreAvgCustomer").value);
+            const newWaste = parseInt(document.getElementById("newStoreWaste").value);
+            const newAvgWaste = parseInt(document.getElementById("newStoreAvgWaste").value);
+
+            if (!newCode || !newName || isNaN(newRevenue) || isNaN(newAvgRevenue) || isNaN(newCustomer) || 
+                isNaN(newAvgCustomer) || isNaN(newWaste) || isNaN(newAvgWaste)) {
+                alert("Lütfen tüm alanları doğru doldurun! ⚠️");
+                return;
+            }
+
+            const storeRef = ref(database, 'stores/' + newCode);
+            set(storeRef, {
+                name: newName,
+                revenue: newRevenue,
+                avgRevenue: newAvgRevenue,
+                customer: newCustomer,
+                avgCustomer: newAvgCustomer,
+                waste: newWaste,
+                avgWaste: newAvgWaste
+            }).then(() => {
+                alert("Mağaza başarıyla eklendi! ✅");
+                fetchStores(); // Sayfayı yenilemeden listeyi güncelle
+            }).catch((error) => {
+                console.error("Firebase Mağaza Ekleme Hatası ❌:", error);
+            });
+        };
+
+        // Firebase'den mağaza silme fonksiyonu
+        window.deleteStore = function(code) {
+            if (confirm("Bu mağazayı silmek istediğinize emin misiniz? ⚠️")) {
+                const storeRef = ref(database, 'stores/' + code);
+                remove(storeRef).then(() => {
+                    alert("Mağaza başarıyla silindi! ✅");
+                    fetchStores(); // Sayfayı yenilemeden listeyi güncelle
+                }).catch((error) => {
+                    console.error("Firebase Silme Hatası ❌:", error);
+                });
+            }
+        };
+
+        // Başlangıçta mağazaları yükle
+        fetchStores();
+    </script>
+</body>
+</html>
